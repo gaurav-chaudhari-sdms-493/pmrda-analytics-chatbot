@@ -26,6 +26,11 @@ class PostgresConversationStore(ConversationStore):
             or "postgresql://postgres:postgres_password@localhost:5433/pmc_metadata_db"
         )
         self.connection_string = raw_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+        try:
+            from ...metadata_logger import PmrdaMetadataLogger
+            PmrdaMetadataLogger(connection_string=self.connection_string)
+        except Exception as e:
+            logger.warning(f"PostgresConversationStore failed to initialize schema: {e}")
 
     def _get_connection(self):
         return psycopg2.connect(self.connection_string)

@@ -89,16 +89,16 @@ def render_ui_component(comp):
 async def get_agent_response(prompt: str):
     context = RequestContext()
     components = []
-    async for component in agent.send_message(context, prompt):
+    async for component in vanna_agent.send_message(context, prompt):
         components.append(component)
     return components
 
 # Sidebar
 with st.sidebar:
-    st.title("🏛️ PMC CMS Assistant")
+    st.title("🏛️ PMRDA Assistant")
     st.markdown("### Domain Knowledge & Status")
-    st.info(f"**LLM:** `{os.getenv('OPENROUTER_LLM_MODEL', 'meta-llama/llama-3.3-70b-instruct')}`")
-    st.success("✅ **Database:** PMC PostgreSQL Connected")
+    st.info(f"**LLM:** `{os.getenv('OPENROUTER_LLM_MODEL', 'openrouter/free')}`")
+    st.success("✅ **Database:** PMRDA PostgreSQL Connected")
     st.success("🧠 **Memory:** Business Context Seeded")
 
     if st.button("🗑️ Clear Chat History", use_container_width=True):
@@ -106,8 +106,8 @@ with st.sidebar:
         st.rerun()
 
 # Page Header
-st.markdown('<div class="main-header">Pune Municipal Corporation (PMC) Data Assistant</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">Specialized AI trained on PMC CMS business rules, ward alias mappings, and complaint schema.</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-header">Pune Metropolitan Region Development Authority (PMRDA) Data Assistant</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">Specialized AI trained on PMRDA RTS business rules, services, and database schema.</div>', unsafe_allow_html=True)
 
 # Initialize Session Chat History
 if "messages" not in st.session_state:
@@ -123,7 +123,7 @@ for msg in st.session_state.messages:
                 render_ui_component(comp)
 
 # Chat Input Handler
-if prompt := st.chat_input("Ask a complaint or ward question (e.g. 'Show total complaints in Bibwewadi from 17 March to 2 September')..."):
+if prompt := st.chat_input("Ask a PMRDA RTS service question (e.g. 'Show total applications count till now')..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)

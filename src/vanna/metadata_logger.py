@@ -1,5 +1,5 @@
 """
-Single file database logger for pmc_metadata_db.
+Single file database logger for pmrda_metadata_db.
 Encapsulates all database operations for storing chat sessions, messages,
 SQL query logs, phase timings, developer info, and unmatched scope queries using distinct columns.
 """
@@ -12,19 +12,136 @@ from typing import Any, Dict, List, Optional
 import psycopg2
 import psycopg2.extras
 
-logger = logging.getLogger("pmc_chatbot.metadata_logger")
+logger = logging.getLogger("pmrda_chatbot.metadata_logger")
 
 
-class PmcMetadataLogger:
-    """Standalone database manager for pmc_metadata_db with dedicated columns for Developer Info & Phase Timing metrics."""
+class PmrdaMetadataLogger:
+    """Standalone database manager for pmrda_metadata_db with dedicated columns for Developer Info & Phase Timing metrics."""
 
     def __init__(self, connection_string: Optional[str] = None):
         raw_url = (
             connection_string
             or os.getenv("METADATA_DATABASE_URL")
-            or "postgresql://postgres:postgres_password@localhost:5433/pmc_metadata_db"
+            or "postgresql://postgres:postgres_password@localhost:5433/pmrda_metadata_db"
         )
         self.connection_string = raw_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+        self._ensure_database_exists()
+        self._ensure_tables_exist()
+
+    def _ensure_database_exists(self):
+        try:
+            conn = psycopg2.connect(self.connection_string)
+            conn.close()
+        except psycopg2.OperationalError as e:
+            if "does not exist" in str(e):
+                try:
+                    from urllib.parse import urlparse
+                    parsed = urlparse(self.connection_string)
+                    dbname = parsed.path.lstrip('/')
+                    user_pass = f"{parsed.username}:{parsed.password}@" if parsed.username else ""
+                    port = f":{parsed.port}" if parsed.port else ""
+                    default_dsn = f"postgresql://{user_pass}{parsed.hostname}{port}/postgres"
+                    conn = psycopg2.connect(default_dsn)
+                    conn.autocommit = True
+                    with conn.cursor() as cur:
+                        cur.execute(f'CREATE DATABASE "{dbname}";')
+                    conn.close()
+                    logger.info(f"Successfully created metadata database: {dbname}")
+                except Exception as ex:
+                    logger.warning(f"Auto-creating metadata database failed: {ex}")
+
+    def _ensure_tables_exist(self):
+        try:
+            conn = psycopg2.connect(self.connection_string)
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS chat_sessions (
+                        id VARCHAR(255) PRIMARY KEY,
+                        title TEXT,
+                        mode VARCHAR(50) DEFAULT 'agent',
+                        user_id TEXT,
+                        user_email TEXT,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    );
+
+                    CREATE TABLE IF NOT EXISTS chat_messages (
+                        id SERIAL PRIMARY KEY,
+                        session_id VARCHAR(255) NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+                        request_id TEXT,
+                        sender VARCHAR(50) NOT NULL,
+                        content TEXT,
+                        sql_used TEXT,
+                        execution_time_ms DOUBLE PRECISION,
+                        total_records BIGINT,
+                        llm_model TEXT,
+                        nitro_routing BOOLEAN DEFAULT FALSE,
+                        prompt_tokens INT,
+                        completion_tokens INT,
+                        total_tokens INT,
+                        estimated_cost_usd DOUBLE PRECISION,
+                        total_latency_ms DOUBLE PRECISION,
+                        phase1_rag_ms DOUBLE PRECISION,
+                        phase2_schema_prompt_ms DOUBLE PRECISION,
+                        phase3_llm_reasoning_ms DOUBLE PRECISION,
+                        phase4_sql_execution_ms DOUBLE PRECISION,
+                        phase5_ui_overhead_ms DOUBLE PRECISION,
+                        llm_and_framework_ms DOUBLE PRECISION,
+                        status VARCHAR(50) DEFAULT 'SUCCESS',
+                        error_message TEXT,
+                        output_file TEXT,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    );
+
+                    CREATE TABLE IF NOT EXISTS query_execution_log (
+                        id SERIAL PRIMARY KEY,
+                        session_id VARCHAR(255),
+                        query_text TEXT NOT NULL,
+                        template_id TEXT,
+                        template_version INT,
+                        bound_parameters TEXT,
+                        result_row_count BIGINT,
+                        execution_time_ms DOUBLE PRECISION,
+                        status VARCHAR(50) DEFAULT 'SUCCESS',
+                        error_message TEXT,
+                        executed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    );
+
+                    CREATE TABLE IF NOT EXISTS unmatched_scope_queries (
+                        id SERIAL PRIMARY KEY,
+                        query_text TEXT NOT NULL,
+                        reason TEXT,
+                        candidate_template_ids TEXT,
+                        session_id VARCHAR(255),
+                        logged_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    );
+
+                    ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS user_id TEXT;
+                    ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS user_email TEXT;
+                    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS request_id TEXT;
+                    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS total_records BIGINT;
+                    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS llm_model TEXT;
+                    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS nitro_routing BOOLEAN DEFAULT FALSE;
+                    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS prompt_tokens INT;
+                    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS completion_tokens INT;
+                    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS total_tokens INT;
+                    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS estimated_cost_usd DOUBLE PRECISION;
+                    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS total_latency_ms DOUBLE PRECISION;
+                    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS phase1_rag_ms DOUBLE PRECISION;
+                    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS phase2_schema_prompt_ms DOUBLE PRECISION;
+                    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS phase3_llm_reasoning_ms DOUBLE PRECISION;
+                    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS phase4_sql_execution_ms DOUBLE PRECISION;
+                    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS phase5_ui_overhead_ms DOUBLE PRECISION;
+                    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS llm_and_framework_ms DOUBLE PRECISION;
+                    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'SUCCESS';
+                    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS error_message TEXT;
+                    ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS output_file TEXT;
+                """)
+                conn.commit()
+            conn.close()
+            logger.info("Successfully ensured metadata database tables exist.")
+        except Exception as e:
+            logger.warning(f"Ensuring metadata database tables failed: {e}")
 
     def _get_connection(self):
         return psycopg2.connect(self.connection_string)
@@ -297,11 +414,15 @@ class PmcMetadataLogger:
         return dev_info
 
 
-# Singleton Global Metadata Logger Instance
-_global_logger: Optional[PmcMetadataLogger] = None
+# Backwards compatibility alias
+PmcMetadataLogger = PmrdaMetadataLogger
 
-def get_metadata_logger() -> PmcMetadataLogger:
+# Singleton Global Metadata Logger Instance
+_global_logger: Optional[PmrdaMetadataLogger] = None
+
+def get_metadata_logger() -> PmrdaMetadataLogger:
     global _global_logger
     if _global_logger is None:
-        _global_logger = PmcMetadataLogger()
+        _global_logger = PmrdaMetadataLogger()
     return _global_logger
+

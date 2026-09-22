@@ -7,7 +7,7 @@ from vanna.core.user import User
 async def test_postgres_conversation_store_crud():
     connection_url = os.getenv(
         "METADATA_DATABASE_URL",
-        "postgresql://postgres:postgres_password@localhost:5433/pmc_metadata_db",
+        "postgresql://postgres:postgres_password@localhost:5433/pmrda_metadata_db",
     )
     store = PostgresConversationStore(connection_string=connection_url)
     user = User(id="test_user_pytest", email="pytest@example.com", group_memberships=["user"])
@@ -15,10 +15,10 @@ async def test_postgres_conversation_store_crud():
 
     try:
         # Create
-        conv = await store.create_conversation(session_id, user, "Pytest test query for PMC")
+        conv = await store.create_conversation(session_id, user, "Pytest test query for PMRDA")
         assert conv.id == session_id
         assert len(conv.messages) == 1
-        assert conv.messages[0].content == "Pytest test query for PMC"
+        assert conv.messages[0].content == "Pytest test query for PMRDA"
 
         # Get
         fetched = await store.get_conversation(session_id, user)

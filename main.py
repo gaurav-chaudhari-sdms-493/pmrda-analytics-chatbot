@@ -27,10 +27,10 @@ from vanna.integrations.openai import OpenAILlmService
 from vanna.integrations.postgres import PostgresRunner, PostgresConversationStore
 from vanna.integrations.local.agent_memory import DemoAgentMemory
 from vanna.core.filter import ContextWindowFilter
-from vanna.prompts import PmcSchemaSystemPromptBuilder, BUSINESS_CONTEXT_DOCUMENTATION
+from vanna.prompts import PmrdaSchemaSystemPromptBuilder, PmcSchemaSystemPromptBuilder, BUSINESS_CONTEXT_DOCUMENTATION
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("pmc_chatbot.schema")
+logger = logging.getLogger("pmrda_chatbot.schema")
 
 # Load environment variables
 load_dotenv()
@@ -116,30 +116,13 @@ def fetch_live_database_schema() -> str:
         logger.warning(f"Live schema query failed, using static catalog fallback: {e}")
         _schema_cache = """
 DATABASE TABLES & COLUMNS:
-Table `complaint`:
+Table `rts_applications`:
   - id (integer)
-  - complaint_number (character varying)
-  - title (character varying)
-  - description (text)
-  - category_id (integer)
-  - sub_category_id (integer)
-  - ward_id (integer)
-  - citizen_id (integer)
+  - application_number (character varying)
+  - service_name (character varying)
+  - applicant_name (character varying)
   - status (character varying)
   - created_at (timestamp without time zone)
-
-Table `category_master`:
-  - id (integer)
-  - category_name (character varying)
-
-Table `sub_category_master`:
-  - id (integer)
-  - category_id (integer)
-  - sub_category_name (character varying)
-
-Table `ward_master`:
-  - id (integer)
-  - ward_name (character varying)
 """
         _cache_timestamp = now
         return _schema_cache

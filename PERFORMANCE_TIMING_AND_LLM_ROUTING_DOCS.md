@@ -1,7 +1,7 @@
-# PMC Chatbot: Latency Optimization, Phase Timing & LLM Routing Documentation
+# PMRDA Chatbot: Latency Optimization, Phase Timing & LLM Routing Documentation
 
 ## 📌 Executive Summary
-This document records the architectural improvements, phase-wise timing instrumentation, single-pass tool loop optimizations, and Open-Source LLM provider routing implemented to diagnose and minimize query response latency for the Pune Municipal Corporation (PMC) Chatbot.
+This document records the architectural improvements, phase-wise timing instrumentation, single-pass tool loop optimizations, and Open-Source LLM provider routing implemented to diagnose and minimize query response latency for the Pune Metropolitan Region Development Authority (PMRDA) Chatbot.
 
 ---
 
@@ -11,7 +11,7 @@ To provide full observability into response delays, latency instrumentation was 
 
 ### Measured Pipeline Phases
 1. **Phase 1: Context & Agent Memory (RAG)** — User resolution, conversation history loading, memory rule retrieval.
-2. **Phase 2: Schema & System Prompt Assembly** — Database schema fetching, PMC business rule compilation.
+2. **Phase 2: Schema & System Prompt Assembly** — Database schema fetching, PMRDA business rule compilation.
 3. **Phase 3: Turn-by-Turn LLM Reasoning & SQL Generation** — Individual tracking of each LLM API call:
    - `3.1 LLM Turn #1 (Generate run_sql)`
    - `3.2 LLM Turn #2 (Synthesize Text Answer)`
@@ -37,16 +37,16 @@ Updated `RunSqlTool` (`src/vanna/tools/run_sql.py#L102-L110`) to return structur
 ## 3. 100% Open-Source LLM Architecture & Nitro Provider Routing
 
 ### Open-Source Policy
-The chatbot strictly uses **100% Open-Source models** (`meta-llama/llama-3.3-70b-instruct`).
+The chatbot strictly uses **100% Open-Source models** (`openrouter/free`).
 
 ### Fast Provider Routing (`:nitro`)
 Configured `.env` to use OpenRouter's Nitro router:
 
 ```env
 # .env Configuration
-DATABASE_URL=postgresql+asyncpg://cms-readonly-user:rfwxwbwyeue@115.160.211.220:2419/pmc_cms_new1
+DATABASE_URL=postgresql+asyncpg://pmrda_rts_user:A4rEKZW0@10.9.53.49:5432/pmrdarts18_05
 OPENROUTER_API_KEY=sk-or-v1-...
-OPENROUTER_LLM_MODEL=meta-llama/llama-3.3-70b-instruct:nitro
+OPENROUTER_LLM_MODEL=openrouter/free
 ```
 
 **Why `:nitro`?**: `:nitro` dynamically routes requests to whichever open-source host (Groq, SambaNova, CoreWeave, DeepInfra) has zero queue delay and highest generation throughput at that exact millisecond.
