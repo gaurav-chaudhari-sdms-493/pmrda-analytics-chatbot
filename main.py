@@ -90,9 +90,12 @@ def fetch_live_database_schema() -> str:
         )
         all_tables = [r[0] for r in cursor.fetchall()]
 
-        # Step 2: Dynamically filter tables to include ONLY those with active records (>0 rows)
+        # Step 2: Dynamically filter tables to include ONLY active operational tables (>0 rows) and exclude backup/snapshot tables (bak_*)
         active_tables = set()
         for t_name in all_tables:
+            # Exclude backup and staging snapshot tables
+            if t_name.startswith('bak_') or t_name.startswith('_bak_'):
+                continue
             try:
                 cursor.execute(f'SELECT EXISTS (SELECT 1 FROM "{t_name}" LIMIT 1);')
                 if cursor.fetchone()[0]:
@@ -126,7 +129,7 @@ def fetch_live_database_schema() -> str:
 
         _schema_cache = "\n".join(catalog_lines)
         _cache_timestamp = now
-        logger.info(f"Successfully fetched live DB schema for {len(tables)} active tables (excluding empty tables).")
+        logger.info(f"Successfully fetched live DB schema for {len(tables)} active operational tables (excluding empty & backup tables).")
         return _schema_cache
     except Exception as e:
         logger.warning(f"Live schema query failed, using static active tables catalog fallback: {e}")
@@ -146,6 +149,15 @@ Table `rts_citizen_applications`:
   - submitted_at (timestamp with time zone)
   - created_at (timestamp with time zone)
   - updated_at (timestamp with time zone)
+
+Table `sdk_dg_documents`:
+  - id (uuid)
+  - application_id (uuid)
+  - document_number (character varying)
+  - document_name (character varying)
+  - template_id (uuid)
+  - status (character varying)
+  - generated_at (timestamp with time zone)
 
 Table `sdk_aw_workflow_tasks`:
   - id (uuid)
