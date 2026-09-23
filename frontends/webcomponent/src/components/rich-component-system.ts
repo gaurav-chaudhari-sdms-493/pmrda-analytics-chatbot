@@ -871,8 +871,8 @@ export class DataFrameComponentRenderer extends BaseComponentRenderer {
           if (customBase) {
             return `${customBase.replace(/\/+$/, '')}${path}`;
           }
-          if (window.location.port === '5173') {
-            return `http://${window.location.hostname}:8000${path}`;
+          if (window.location.port === '5174' || window.location.port === '5173') {
+            return `http://${window.location.hostname}:8001${path}`;
           }
           return path;
         };

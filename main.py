@@ -271,4 +271,5 @@ if __name__ == "__main__":
             "cdn_url": "/static/vanna-components.js",
         },
     )
-    server.run()
+    port = int(os.getenv("PORT", 8001))
+    server.run(port=port)
