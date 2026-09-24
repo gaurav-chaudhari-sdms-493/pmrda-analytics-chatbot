@@ -1,4 +1,10 @@
+import os
+import sys
 import asyncio
+
+# Ensure vanna package is importable from workspace root
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+
 from vanna.capabilities.agent_memory import ToolMemory
 from vanna.core.tool import ToolContext
 from vanna.core.user.models import User
@@ -530,18 +536,44 @@ training_examples = [
     )
 ]
 
-# Create a user context
-your_user = User(id="admin", email="admin@example.com", group_memberships=["admin"])
-
-async def register_training_data(agent):
+async def register_training_data(agent_or_memory, user: User = None):
+    """Registers manual Question-SQL pair training examples into Vanna Agent Memory."""
+    if user is None:
+        user = User(id="admin@example.com", email="admin@example.com", group_memberships=["admin"])
+    
+    memory = getattr(agent_or_memory, "agent_memory", agent_or_memory)
+    
+    dummy_context = ToolContext(
+        user=user,
+        conversation_id="system_init",
+        request_id="init_training_data",
+        agent_memory=memory
+    )
+    
+    count = 0
     for example in training_examples:
-        await agent.agent_memory.save_tool_usage(
+        await memory.save_tool_usage(
             question=example.question,
             tool_name=example.tool_name,
             args=example.args,
-            context=ToolContext(user=your_user),
+            context=dummy_context,
             success=True
         )
+        count += 1
+    return count
 
 if __name__ == "__main__":
-    print(f"Successfully verified and loaded {len(training_examples)} training pairs into memory.")
+    from vanna.integrations.local.agent_memory import DemoAgentMemory
+    
+    async def main():
+        mem = DemoAgentMemory()
+        registered = await register_training_data(mem)
+        print(f"Successfully verified and loaded {registered} manual Question-SQL training pairs into Vanna Agent Memory.")
+        dummy_user = User(id="admin@example.com", email="admin@example.com", group_memberships=["admin"])
+        dummy_context = ToolContext(user=dummy_user, conversation_id="test", request_id="test", agent_memory=mem)
+        memories = await mem.get_recent_memories(dummy_context, limit=100)
+        print(f"Verified memory store count: {len(memories)} entries.")
+        for idx, m in enumerate(memories, 1):
+            print(f"  {idx}. [{m.tool_name}] Question: {m.question}")
+
+    asyncio.run(main())

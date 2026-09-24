@@ -66,6 +66,10 @@ CACHE_TTL_SECONDS = 300
 
 def fetch_live_database_schema() -> str:
     """Returns raw table and column metadata directly from PostgreSQL, dynamically excluding empty tables (0 rows)."""
+    if os.getenv("FEED_LIVE_SCHEMA", "false").lower() != "true":
+        logger.info("Live database schema feeding is DISABLED (FEED_LIVE_SCHEMA != true). Relying strictly on Business Rules and Manual Question-SQL Training in Agent Memory.")
+        return "No live database schema provided. Rely strictly on Business Rules and Manual Question-SQL Pair Training in Agent Memory."
+
     global _schema_cache, _cache_timestamp
     now = time.time()
 
@@ -218,12 +222,14 @@ Table `license_master`:
 # 3. Dynamic System Prompt Builder & Business Context documentation are imported from vanna.prompts
 # (See src/vanna/prompts.py for system prompt templates, rules, and domain documentation)
 
+from vanna_training_data import register_training_data
+
 # 4. Configure Agent Memory
 agent_memory = DemoAgentMemory(max_items=1000)
 
 
 async def seed_domain_knowledge(memory: DemoAgentMemory, user: CoreUser):
-    """Seed manual business rules and context into agent memory."""
+    """Seed manual business rules, context, and manual Question-SQL training pairs into agent memory."""
     dummy_context = ToolContext(
         user=user,
         conversation_id="system_init",
@@ -233,6 +239,10 @@ async def seed_domain_knowledge(memory: DemoAgentMemory, user: CoreUser):
     for doc in BUSINESS_CONTEXT_DOCUMENTATION:
         await memory.save_text_memory(content=doc, context=dummy_context)
     logger.info("Successfully seeded domain knowledge and business rules into Agent Memory.")
+
+    # Register manual Question-SQL training pairs from vanna_training_data.py
+    count = await register_training_data(memory, user=user)
+    logger.info(f"Successfully seeded {count} manual Question-SQL training pairs from vanna_training_data.py into Agent Memory.")
 
 
 # 5. Configure User Resolver
